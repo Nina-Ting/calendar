@@ -1,137 +1,152 @@
 <!DOCTYPE html>
+
 <html lang="zh-TW">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>柳柳行事曆 FINAL</title>
+<title>柳柳行事曆 ☁️</title>
+
 <style>
-  body { font-family: "Microsoft JhengHei", Arial, sans-serif; margin: 0; padding: 10px; background: #fdf6f7; }
-  h2 { text-align: center; color: #d63384; margin-top: 10px; }
-  .header { display: flex; justify-content: space-between; align-items: center; margin: 10px 0 15px; }
-  button { padding: 8px 15px; border: none; background: #ff85a2; color: white; border-radius: 20px; cursor: pointer; transition: 0.3s; }
-  button:hover { background: #f06292; transform: scale(1.05); }
-  .calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
-  .day-name { text-align: center; font-weight: bold; background: #ffc1cf; padding: 8px; border-radius: 5px; color: #555; }
-  .day { background: white; min-height: 100px; border: 1px solid #ffdae0; padding: 6px; border-radius: 8px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05); cursor: cell; }
-  .date { font-weight: bold; margin-bottom: 5px; color: #888; pointer-events: none; }
-  .event { margin-top: 4px; font-size: 13px; cursor: pointer; background: #fff0f3; border-left: 3px solid #ff85a2; padding: 2px 6px; border-radius: 2px; word-break: break-all; }
-  input[type="text"] { width: 90%; border: 1px solid #ff85a2; border-radius: 4px; padding: 2px; }
+body { font-family: "Microsoft JhengHei"; margin: 0; padding: 10px; background: #fdf6f7; }
+h2 { text-align: center; color: #d63384; }
+.header { display:flex; justify-content:space-between; align-items:center; }
+button { padding:8px 15px; border:none; background:#ff85a2; color:white; border-radius:20px; }
+.calendar { display:grid; grid-template-columns: repeat(7,1fr); gap:8px; }
+.day { background:white; min-height:90px; padding:5px; border-radius:8px; cursor:pointer; }
+.date { font-size:12px; color:#888; }
+.event { font-size:13px; background:#ffe4ec; margin-top:3px; padding:2px 4px; border-left:3px solid #ff85a2; }
 </style>
+
 </head>
+
 <body>
 
-<h2>🌸 柳柳行事曆</h2>
+<h2>🌸 柳柳行事曆（雲端版）</h2>
 
 <div class="header">
-  <button onclick="prevMonth()">⬅ 上個月</button>
-  <div id="title" style="font-weight: bold; font-size: 1.2em;"></div>
-  <button onclick="nextMonth()">下個月 ➡</button>
+<button onclick="prevMonth()">⬅</button>
+<div id="title"></div>
+<button onclick="nextMonth()">➡</button>
 </div>
 
 <div class="calendar" id="cal"></div>
 
-<script>
+<!-- Firebase -->
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc } 
+from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+
+// 
+const firebaseConfig = {
+  apiKey: "AIzaSyCATMFkwvvBIqnqnKd2-5ArI6A86P_8q50",
+  authDomain: "ting-calender.firebaseapp.com",
+  projectId: "ting-calender",
+  storageBucket: "ting-calender.firebasestorage.app",
+  messagingSenderId: "899802615147",
+  appId: "1:899802615147:web:98ee6a79006f3e75ce502e",
+  measurementId: "G-Z16N89DKBG"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+
+// =====================
+
 let y = new Date().getFullYear();
 let m = new Date().getMonth();
-let editing = null;
 
 function key(y,m,d){ return `${y}-${m+1}-${d}`; }
-function load(){ return JSON.parse(localStorage.getItem("lyu_events") || "{}"); }
-function save(d){ localStorage.setItem("lyu_events", JSON.stringify(d)); }
 
-function render(){
-  const cal = document.getElementById("cal");
-  if(!cal) return;
-  cal.innerHTML = "";
-  document.getElementById("title").innerText = `${y} 年 ${m+1} 月`;
 
-  let data = load();
-  let first = new Date(y, m, 1);
-  let start = (first.getDay() + 6) % 7; 
-  let days = new Date(y, m + 1, 0).getDate();
-
-  const week = ["一","二","三","四","五","六","日"];
-  week.forEach(w => {
-    let d = document.createElement("div");
-    d.className = "day-name";
-    d.innerText = w;
-    cal.appendChild(d);
+// 🔥 讀資料
+async function load(){
+  const snap = await getDocs(collection(db, "events"));
+  let data = {};
+  snap.forEach(docu => {
+    let item = docu.data();
+    if(!data[item.date]) data[item.date] = [];
+    data[item.date].push({ ...item, id: docu.id });
   });
+  return data;
+}
 
-  for(let i=0; i<start; i++) cal.appendChild(document.createElement("div"));
 
-  for(let i=1; i<=days; i++){
+// 🎨 畫畫面
+async function render(){
+  const cal = document.getElementById("cal");
+  cal.innerHTML = "";
+
+  document.getElementById("title").innerText = `${y} / ${m+1}`;
+
+  let data = await load();
+
+  let first = new Date(y, m, 1);
+  let start = (first.getDay()+6)%7;
+  let days = new Date(y, m+1, 0).getDate();
+
+  for(let i=0;i<start;i++) cal.appendChild(document.createElement("div"));
+
+  for(let i=1;i<=days;i++){
     let box = document.createElement("div");
     box.className = "day";
     let k = key(y,m,i);
 
-    let date = document.createElement("div");
-    date.className = "date";
-    date.innerText = i;
-    box.appendChild(date);
+    let d = document.createElement("div");
+    d.className = "date";
+    d.innerText = i;
+    box.appendChild(d);
 
-    (data[k]||[]).forEach(item => {
+    (data[k]||[]).forEach(item=>{
       let e = document.createElement("div");
-      e.className = "event";
-      e.innerText = item.text;
-      e.onclick = (ev) => {
+      e.className="event";
+      e.innerText=item.text;
+
+      e.onclick = async (ev)=>{
         ev.stopPropagation();
-        startEdit(e, item, k);
+        let val = prompt("修改（留空=刪除）", item.text);
+
+        if(val===null) return;
+
+        if(val.trim()===""){
+          await deleteDoc(doc(db,"events",item.id));
+        }else{
+          await updateDoc(doc(db,"events",item.id),{text:val});
+        }
+        render();
       };
+
       box.appendChild(e);
     });
 
-    box.onclick = () => {
+    box.onclick = async ()=>{
       let text = prompt("新增行程：");
-      if(!text || text.trim()==="") return;
-      let d = load();
-      if(!d[k]) d[k] = [];
-      d[k].push({ id: Date.now(), text });
-      save(d);
+      if(!text) return;
+
+      await addDoc(collection(db,"events"),{
+        date:k,
+        text:text
+      });
+
       render();
     };
+
     cal.appendChild(box);
   }
 }
 
-function startEdit(el, item, k){
-  let input = document.createElement("input");
-  input.type = "text";
-  input.value = item.text;
-  el.innerHTML = "";
-  el.appendChild(input);
-  input.focus();
-  editing = { input, item, k };
 
-  input.onblur = saveEdit; 
-  input.onkeydown = (e) => { 
-    if(e.key === "Enter") saveEdit();
-    if(e.key === "Escape") render(); 
-  };
-}
+// 月份切換
+function prevMonth(){ m--; if(m<0){m=11;y--;} render(); }
+function nextMonth(){ m++; if(m>11){m=0;y++;} render(); }
 
-function saveEdit(){
-  if(!editing) return;
-  let data = load();
-  let val = editing.input.value.trim();
-  if(val === ""){
-    data[editing.k] = data[editing.k].filter(x => x.id != editing.item.id);
-    if(data[editing.k].length === 0) delete data[editing.k];
-  } else {
-    let list = data[editing.k] || [];
-    let obj = list.find(x => x.id == editing.item.id);
-    if(obj) obj.text = val;
-  }
-  save(data);
-  editing = null;
-  render();
-}
-
-function prevMonth(){ m--; if(m<0){ m=11; y--; } render(); }
-function nextMonth(){ m++; if(m>11){ m=0; y++; } render(); }
-
-// 確保畫面上線
 window.onload = render;
+
 </script>
+
 </body>
 </html>
